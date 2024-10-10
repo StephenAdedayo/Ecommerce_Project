@@ -3,6 +3,8 @@ import Title from '../components/Title'
 import CartTotal from '../components/CartTotal'
 import { assets } from '../assets/assets'
 import { ShopContext } from '../context/ShopContext'
+import { toast } from 'react-toastify'
+import axios from 'axios'
 
 const PlaceOrder = () => {
  
@@ -31,10 +33,81 @@ const PlaceOrder = () => {
 
   }
 
-  const {navigate} = useContext(ShopContext)
+  const {navigate, backendUrl, token, cartItems, setCartItems, getCartAmount, delivery_fee, products} = useContext(ShopContext)
+
+
+  const onSubmitHandler = async (e) => {
+      e.preventDefault()
+
+
+      try {
+        
+        let orderItems = []
+
+        for(const items in cartItems){
+          for(const item in cartItems[items]){
+            // check if the product is in the cart already and the quantity is > 0
+            if(cartItems[items][item] > 0){
+              // structuted clone to create a copy of any object in diff var
+                 const itemInfo = structuredClone(products.find(product => product._id === items))
+                 if(itemInfo){
+                  itemInfo.size = item
+                  itemInfo.quantity = cartItems[items][item]
+                  orderItems.push(itemInfo)
+                 }
+            }
+          }
+        }
+     
+        // console.log(orderItems);
+
+        let orderData = {
+          address : formData,
+          items : orderItems,
+          amount : getCartAmount() + delivery_fee
+        }
+
+        switch(method){
+          // api calls for cash on delivery order(cod)
+
+          case 'cod' :
+           const response = await axios.post(backendUrl + '/api/order/place', orderData, {headers : {token}})
+           console.log(response.data);
+           
+           if(response.data.success){
+            setCartItems({})
+            navigate('/orders')
+           }
+           else{
+            toast.error(response.data.message)
+           }
+          break;
+         
+          case 'stripe' :
+         
+          const responseStripe = await axios.post(backendUrl + '/api/order/stripe', orderData, {headers : {token}})
+           if(responseStripe.data.success){
+            const {session_url} = responseStripe.data
+            window.location.replace(session_url)
+           } else{
+            toast.error(responseStripe.data.message)
+           }
+          break;
+
+          default: 
+          break;
+        }
+        
+
+      } catch (error) {
+        console.log(error);
+        toast.error(error.message)
+      }
+
+  }
 
   return (
-    <form className='flex flex-col sm:flex-row justify-between gap-4 pt-5 sm:pt-14 min-h-[80vh]'>
+    <form onSubmit={onSubmitHandler} className='flex flex-col sm:flex-row justify-between gap-4 pt-5 sm:pt-14 min-h-[80vh]'>
 
       <div className='flex flex-col gap-4 w-full sm:max-w-[480px]'>
 
